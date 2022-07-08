@@ -1,0 +1,114 @@
+#For use in Jupyter Notebook. Code may or may not work if you use an alternative program/notebook. 
+
+import piplite
+await piplite.install(['pandas'])
+await piplite.install(['matplotlib'])
+await piplite.install(['numpy'])
+await piplite.install(['scikit-learn'])
+await piplite.install(['scipy'])
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from sklearn import preprocessing
+%matplotlib inline
+
+from pyodide.http import pyfetch
+
+async def download(url, filename):
+    response = await pyfetch(url)
+    if response.status == 200:
+        with open(filename, "wb") as f:
+            f.write(await response.bytes())
+path="https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-ML0101EN-SkillsNetwork/labs/Module%203/data/teleCust1000t.csv"
+
+await download(path, 'teleCust1000t.csv')
+
+#now to check that we have the right data before doing a whole lot of nothing
+df = pd.read_csv('teleCust1000t.csv')
+df.head()
+
+#Excellent
+
+df['custcat'].value_counts()
+df.hist(column='income', bins=50)
+df.columns
+
+#Converting from pandas dataframe to numpy array for scikit-learn
+X = df[['region', 'tenure','age', 'marital', 'address', 'income', 'ed', 'employ','retire', 'gender', 'reside']] .values  #.astype(float)
+X[0:5]
+
+#checking the labels
+y = df['custcat'].values
+y[0:5]
+
+#Normalizing the data. 
+X = preprocessing.StandardScaler().fit(X).transform(X.astype(float))
+X[0:5]
+
+#creating a little train test split action
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=0.2, random_state=4)
+print ('Train set:', X_train.shape,  y_train.shape)
+print ('Test set:', X_test.shape,  y_test.shape)
+
+#Now for the good stuff. Import the Kellogs
+from sklearn.neighbors import KNeighborsClassifier
+
+#We'll start with k equal to 1. Just gonna take a wild guess that this will suck.
+k = 1
+#Train Model and Predict  
+neigh = KNeighborsClassifier(n_neighbors = k).fit(X_train,y_train)
+neigh
+
+#We'll try predicting with this anyway
+yhat = neigh.predict(X_test)
+yhat[0:5]
+
+#And evaluate the accuracy
+from sklearn import metrics
+print("Train set Accuracy: ", metrics.accuracy_score(y_train, neigh.predict(X_train)))
+print("Test set Accuracy: ", metrics.accuracy_score(y_test, yhat))
+
+#Guess what? It sucked! Now we'll try a real number. 
+
+k = 9
+#Train Model and Predict  
+neigh9 = KNeighborsClassifier(n_neighbors = k).fit(X_train,y_train)
+
+yhat9 = neigh9.predict(X_test)
+print("Train set Accuracy: ", metrics.accuracy_score(y_train, neigh.predict(X_train)))
+print("Test set Accuracy: ", metrics.accuracy_score(y_test, yhat))
+
+#How about instead of guessing, we let the computer do the work for us? I like the sound of that.
+Ks = 10
+mean_acc = np.zeros((Ks-1))
+std_acc = np.zeros((Ks-1))
+
+for n in range(1,Ks):
+    
+    #Train Model and Predict  
+    neigh = KNeighborsClassifier(n_neighbors = n).fit(X_train,y_train)
+    yhat=neigh.predict(X_test)
+    mean_acc[n-1] = metrics.accuracy_score(y_test, yhat)
+
+    
+    std_acc[n-1]=np.std(yhat==y_test)/np.sqrt(yhat.shape[0])
+
+mean_acc
+
+#And since we're all data scientists here, let's make a pretty graph to see how accurate our model is
+plt.plot(range(1,Ks),mean_acc,'g')
+plt.fill_between(range(1,Ks),mean_acc - 1 * std_acc,mean_acc + 1 * std_acc, alpha=0.10)
+plt.fill_between(range(1,Ks),mean_acc - 3 * std_acc,mean_acc + 3 * std_acc, alpha=0.10,color="green")
+plt.legend(('Accuracy ', '+/- 1xstd','+/- 3xstd'))
+plt.ylabel('Accuracy ')
+plt.xlabel('Number of Neighbors (K)')
+plt.tight_layout()
+plt.show()
+
+#And then because I'm trying to make the machine do all my work, let's make it just tell us what the best K value is.
+print( "The best accuracy was with", mean_acc.max(), "with k=", mean_acc.argmax()+1) 
+
+#There you have it, 42! The answer to everything! Just kidding. 
